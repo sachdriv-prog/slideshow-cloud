@@ -1,0 +1,45 @@
+name: Upload Slideshows to Pixeldrain (From Artifacts)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: List downloaded files
+      run: |
+        echo "Artifacts structure:"
+        find artifacts -type f
+
+    - name: Upload all slideshows to Pixeldrain
+      env:
+        PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
+      run: |
+        for file in artifacts/**/**/*.mp4; do
+          echo "Uploading $file"
+
+          RESPONSE=$(curl -s -u ":$PIXELDRAIN_API_KEY" \
+            -F "file=@$file" \
+            https://pixeldrain.com/api/file)
+
+          echo "Raw response:"
+          echo "$RESPONSE"
+
+          ID=$(echo "$RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+
+          if [ -n "$ID" ]; then
+            echo "PIXELDRAIN LINK:"
+            echo "https://pixeldrain.com/u/$ID"
+          else
+            echo "Upload failed for $file"
+          fi
+
+          echo "-----------------------------"
+        done
