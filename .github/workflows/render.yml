@@ -22,16 +22,20 @@ jobs:
 
     - name: Download images from Google Drive
       run: |
+        echo "Downloading images.zip from Drive"
         gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
         ls -lh
         unzip images.zip -d images
 
-    - name: Render slideshow
+    - name: Render slideshow (JPEG)
       run: |
+        echo "Listing images:"
+        find images -type f
+
         ffmpeg -y \
         -framerate 1/5 \
         -pattern_type glob \
-        -i "images/*.jpg" \
+        -i "images/**/*.jpeg" \
         -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
         slideshow_${{ matrix.worker }}.mp4
 
@@ -41,6 +45,7 @@ jobs:
         import requests
 
         file = "slideshow_${{ matrix.worker }}.mp4"
+
         server = requests.get(
             "https://api.gofile.io/getServer"
         ).json()["data"]["server"]
