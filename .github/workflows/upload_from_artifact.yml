@@ -11,6 +11,7 @@ jobs:
     - name: Download artifacts from render run
       uses: actions/download-artifact@v4
       with:
+        repository: sachdriv-prog/slideshow-cloud
         run-id: 20269412378
         path: artifacts
         merge-multiple: true
@@ -18,12 +19,16 @@ jobs:
     - name: List downloaded files
       run: |
         echo "Downloaded files:"
+        ls -R artifacts
         find artifacts -type f
 
     - name: Upload all slideshows to Pixeldrain
       env:
         PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
       run: |
+        set -e
+
+        COUNT=0
         for file in artifacts/**/*.mp4; do
           echo "Uploading $file"
 
@@ -39,9 +44,12 @@ jobs:
           if [ -n "$ID" ]; then
             echo "PIXELDRAIN LINK:"
             echo "https://pixeldrain.com/u/$ID"
+            COUNT=$((COUNT+1))
           else
-            echo "Upload failed for $file"
+            echo "❌ Upload failed for $file"
           fi
 
-          echo "-----------------------------"
+          echo "---------------------------------"
         done
+
+        echo "TOTAL UPLOADED FILES: $COUNT"
