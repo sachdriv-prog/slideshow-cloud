@@ -27,10 +27,6 @@ jobs:
         ffmpeg -y -framerate 1/5 -pattern_type glob -i "images/*.jpg" \
         -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
         slideshow_${{ matrix.worker }}.mp4
-
-    - name: Upload to GoFile
-
-
     - name: Upload to GoFile
       run: |
         python - << 'EOF'
