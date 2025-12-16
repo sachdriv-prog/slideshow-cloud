@@ -1,4 +1,4 @@
-name: Fast Parallel Slideshow
+name: Random Parallel Slideshow + Upload
 
 on:
   workflow_dispatch:
@@ -14,10 +14,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install system tools
+    - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg unzip curl
+        sudo apt install -y ffmpeg unzip jq curl
         pip install gdown
 
     - name: Download images from Google Drive
@@ -25,36 +25,55 @@ jobs:
         gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
         unzip images.zip -d images
 
-    - name: Render slideshow (JPEG)
+    - name: Generate RANDOM image list (per worker)
+      run: |
+        echo "Generating random order for worker ${{ matrix.worker }}"
+
+        find images -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) > images_all.txt
+
+        shuf --random-source=<(yes ${{ matrix.worker }}) images_all.txt > images_shuffled.txt
+
+        echo "Preview (first 10 images):"
+        head images_shuffled.txt
+
+        # Create FFmpeg concat list
+        sed "s|^|file '|; s|$|'|" images_shuffled.txt > images_ffmpeg.txt
+
+    - name: Render slideshow (RANDOM)
       run: |
         ffmpeg -y \
-        -framerate 1/5 \
-        -pattern_type glob \
-        -i "images/**/*.jpeg" \
-        -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
-        slideshow_${{ matrix.worker }}.mp4
+          -f concat -safe 0 -i images_ffmpeg.txt \
+          -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.15)':d=150" \
+          -r 30 \
+          slideshow_${{ matrix.worker }}.mp4
 
-    # 🔐 BACKUP (SO 30 MIN NEVER WASTED)
     - name: Backup slideshow as artifact
       uses: actions/upload-artifact@v4
       with:
         name: slideshow_${{ matrix.worker }}
         path: slideshow_${{ matrix.worker }}.mp4
 
-    # 🚀 UPLOAD TO PIXELDRAIN (STABLE)
-    - name: Upload to Pixeldrain
+    - name: Upload slideshow to Pixeldrain
+      env:
+        PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
       run: |
         FILE="slideshow_${{ matrix.worker }}.mp4"
-        echo "Uploading $FILE to Pixeldrain..."
+        echo "Uploading $FILE"
 
-        RESPONSE=$(curl -s -X POST \
+        RESPONSE=$(curl -s -u ":$PIXELDRAIN_API_KEY" \
           -F "file=@$FILE" \
           https://pixeldrain.com/api/file)
 
         echo "Raw response:"
         echo "$RESPONSE"
 
-        LINK=$(echo "$RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/https:\/\/pixeldrain.com\/u\/\1/p')
+        ID=$(echo "$RESPONSE" | jq -r '.id // empty')
 
-        echo "PIXELDRAIN LINK:"
-        echo "$LINK"
+        if [ -n "$ID" ]; then
+          echo "=============================="
+          echo "PIXELDRAIN LINK:"
+          echo "https://pixeldrain.com/u/$ID"
+          echo "=============================="
+        else
+          echo "❌ Upload failed"
+        fi
