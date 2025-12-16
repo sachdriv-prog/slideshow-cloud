@@ -1,4 +1,4 @@
-name: Upload Slideshows to Pixeldrain (From Render Run)
+name: Upload Slideshows to Pixeldrain (Direct Artifact API)
 
 on:
   workflow_dispatch:
@@ -8,27 +8,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Download artifacts from render run
-      uses: actions/download-artifact@v4
-      with:
-        repository: sachdriv-prog/slideshow-cloud
-        run-id: 20269412378
-        path: artifacts
-        merge-multiple: true
-
-    - name: List downloaded files
+    - name: Install tools
       run: |
-        echo "Downloaded files:"
-        ls -R artifacts
-        find artifacts -type f
+        sudo apt update
+        sudo apt install -y jq curl unzip
 
-    - name: Upload all slideshows to Pixeldrain
+    - name: Download artifacts via GitHub API
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        mkdir artifacts
+        cd artifacts
+
+        # Artifact IDs from your render run
+        ARTIFACTS=(
+          4885841947
+          4885817368
+          4885815455
+          4885815200
+          4885824653
+        )
+
+        for ID in "${ARTIFACTS[@]}"; do
+          echo "Downloading artifact $ID"
+          curl -L \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/sachdriv-prog/slideshow-cloud/actions/artifacts/$ID/zip \
+            -o artifact_$ID.zip
+
+          unzip artifact_$ID.zip
+        done
+
+        echo "Downloaded files:"
+        find . -type f
+
+    - name: Upload MP4 files to Pixeldrain
       env:
         PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
       run: |
-        set -e
-
-        COUNT=0
         for file in artifacts/**/*.mp4; do
           echo "Uploading $file"
 
@@ -36,20 +54,16 @@ jobs:
             -F "file=@$file" \
             https://pixeldrain.com/api/file)
 
-          echo "Raw response:"
           echo "$RESPONSE"
 
-          ID=$(echo "$RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+          ID=$(echo "$RESPONSE" | jq -r '.id // empty')
 
           if [ -n "$ID" ]; then
             echo "PIXELDRAIN LINK:"
             echo "https://pixeldrain.com/u/$ID"
-            COUNT=$((COUNT+1))
           else
             echo "❌ Upload failed for $file"
           fi
 
-          echo "---------------------------------"
+          echo "-----------------------------"
         done
-
-        echo "TOTAL UPLOADED FILES: $COUNT"
