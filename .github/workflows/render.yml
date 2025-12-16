@@ -20,7 +20,7 @@ jobs:
     - name: Download images from Drive
       run: |
         gdown "https://drive.google.com/file/d/1fRbiu36873nfg6god2n_fzftVi-oXZjN/view?usp=sharing"
-        unzip image.zip -d images
+        unzip images.zip -d images
 
     - name: Render slideshow
       run: |
