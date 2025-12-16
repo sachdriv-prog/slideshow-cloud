@@ -17,10 +17,12 @@ jobs:
         sudo apt install -y ffmpeg
         pip install gdown requests
 
-    - name: Download images from Drive
-      run: |
-        gdown "https://drive.google.com/file/d/1fRbiu36873nfg6god2n_fzftVi-oXZjN/view?usp=sharing"
-        unzip images.zip -d images
+    - name: Download images from Google Drive
+  run: |
+    gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
+    ls -lh
+    unzip images.zip -d images
+
 
     - name: Render slideshow
       run: |
