@@ -11,30 +11,44 @@ jobs:
         worker: [1, 2, 3, 4, 5]
 
     steps:
-    - name: Install tools
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Install system tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg
+        sudo apt install -y ffmpeg unzip
         pip install gdown requests
 
     - name: Download images from Google Drive
-  run: |
-    gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
-    ls -lh
-    unzip images.zip -d images
-
+      run: |
+        gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
+        ls -lh
+        unzip images.zip -d images
 
     - name: Render slideshow
       run: |
-        ffmpeg -y -framerate 1/5 -pattern_type glob -i "images/*.jpg" \
+        ffmpeg -y \
+        -framerate 1/5 \
+        -pattern_type glob \
+        -i "images/*.jpg" \
         -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
         slideshow_${{ matrix.worker }}.mp4
+
     - name: Upload to GoFile
       run: |
         python - << 'EOF'
         import requests
-        file="slideshow_${{ matrix.worker }}.mp4"
-        s=requests.get("https://api.gofile.io/getServer").json()["data"]["server"]
-        r=requests.post(f"https://{s}.gofile.io/uploadFile", files={"file":open(file,"rb")})
-        print(r.json()["data"]["downloadPage"])
+
+        file = "slideshow_${{ matrix.worker }}.mp4"
+        server = requests.get(
+            "https://api.gofile.io/getServer"
+        ).json()["data"]["server"]
+
+        r = requests.post(
+            f"https://{server}.gofile.io/uploadFile",
+            files={"file": open(file, "rb")}
+        )
+
+        print("GOFILE LINK:", r.json()["data"]["downloadPage"])
         EOF
