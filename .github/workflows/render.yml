@@ -17,20 +17,16 @@ jobs:
     - name: Install system tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg unzip
-        pip install gdown requests
+        sudo apt install -y ffmpeg unzip curl
+        pip install gdown
 
     - name: Download images from Google Drive
       run: |
         gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
-        ls -lh
         unzip images.zip -d images
 
     - name: Render slideshow (JPEG)
       run: |
-        echo "Listing images:"
-        find images -type f
-
         ffmpeg -y \
         -framerate 1/5 \
         -pattern_type glob \
@@ -38,48 +34,27 @@ jobs:
         -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
         slideshow_${{ matrix.worker }}.mp4
 
-    # 🔐 BACKUP — THIS SAVES YOU FROM WASTING 30 MIN AGAIN
+    # 🔐 BACKUP (SO 30 MIN NEVER WASTED)
     - name: Backup slideshow as artifact
       uses: actions/upload-artifact@v4
       with:
         name: slideshow_${{ matrix.worker }}
         path: slideshow_${{ matrix.worker }}.mp4
 
-    # 📤 SAFE GOFILE UPLOAD (NO CRASH EVEN IF RESPONSE IS BAD)
-    - name: Upload to GoFile (SAFE)
+    # 🚀 UPLOAD TO PIXELDRAIN (STABLE)
+    - name: Upload to Pixeldrain
       run: |
-        python - << 'EOF'
-        import requests, os
+        FILE="slideshow_${{ matrix.worker }}.mp4"
+        echo "Uploading $FILE to Pixeldrain..."
 
-        filename = f"slideshow_{os.environ.get('MATRIX_WORKER','')}.mp4"
-        if not os.path.exists(filename):
-            files = [f for f in os.listdir('.') if f.startswith("slideshow_")]
-            filename = files[0]
+        RESPONSE=$(curl -s -X POST \
+          -F "file=@$FILE" \
+          https://pixeldrain.com/api/file)
 
-        print("Uploading:", filename)
+        echo "Raw response:"
+        echo "$RESPONSE"
 
-        server_resp = requests.get("https://api.gofile.io/getServer")
-        print("Server response:")
-        print(server_resp.text)
+        LINK=$(echo "$RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/https:\/\/pixeldrain.com\/u\/\1/p')
 
-        server = server_resp.json()["data"]["server"]
-
-        upload = requests.post(
-            f"https://{server}.gofile.io/uploadFile",
-            files={"file": open(filename, "rb")}
-        )
-
-        print("Upload HTTP status:", upload.status_code)
-        print("Upload raw response:")
-        print(upload.text)
-
-        try:
-            data = upload.json()
-            if data.get("status") == "ok":
-                print("GOFILE LINK:", data["data"]["downloadPage"])
-            else:
-                print("Upload finished but unexpected JSON:", data)
-        except Exception:
-            print("Upload likely succeeded, but response was not JSON.")
-            print("Check GoFile manually if needed.")
-        EOF
+        echo "PIXELDRAIN LINK:"
+        echo "$LINK"
