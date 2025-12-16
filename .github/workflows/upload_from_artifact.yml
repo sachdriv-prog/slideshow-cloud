@@ -1,4 +1,4 @@
-name: Upload Slideshows to Pixeldrain (From Artifacts)
+name: Upload Slideshows to Pixeldrain (From Render Run)
 
 on:
   workflow_dispatch:
@@ -8,22 +8,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Download all artifacts
+    - name: Download artifacts from render run
       uses: actions/download-artifact@v4
       with:
+        run-id: 20269412378
         path: artifacts
         merge-multiple: true
 
     - name: List downloaded files
       run: |
-        echo "Files downloaded:"
-        find . -type f
+        echo "Downloaded files:"
+        find artifacts -type f
 
     - name: Upload all slideshows to Pixeldrain
       env:
         PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
       run: |
-        for file in $(find . -name "*.mp4"); do
+        for file in artifacts/**/*.mp4; do
           echo "Uploading $file"
 
           RESPONSE=$(curl -s -u ":$PIXELDRAIN_API_KEY" \
