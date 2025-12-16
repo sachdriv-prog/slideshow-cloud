@@ -8,21 +8,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Download artifacts
+    - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
         path: artifacts
+        merge-multiple: true
 
     - name: List downloaded files
       run: |
-        echo "Artifacts structure:"
-        find artifacts -type f
+        echo "Files downloaded:"
+        find . -type f
 
     - name: Upload all slideshows to Pixeldrain
       env:
         PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
       run: |
-        for file in artifacts/**/**/*.mp4; do
+        for file in $(find . -name "*.mp4"); do
           echo "Uploading $file"
 
           RESPONSE=$(curl -s -u ":$PIXELDRAIN_API_KEY" \
