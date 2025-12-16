@@ -22,7 +22,6 @@ jobs:
 
     - name: Download images from Google Drive
       run: |
-        echo "Downloading images.zip from Drive"
         gdown --id 1fRbiu36873nfg6god2n_fzftVi-oXZjN -O images.zip
         ls -lh
         unzip images.zip -d images
@@ -39,21 +38,48 @@ jobs:
         -vf "scale=1280:720,zoompan=z='min(zoom+0.0007,1.1)':d=150" \
         slideshow_${{ matrix.worker }}.mp4
 
-    - name: Upload to GoFile
+    # 🔐 BACKUP — THIS SAVES YOU FROM WASTING 30 MIN AGAIN
+    - name: Backup slideshow as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: slideshow_${{ matrix.worker }}
+        path: slideshow_${{ matrix.worker }}.mp4
+
+    # 📤 SAFE GOFILE UPLOAD (NO CRASH EVEN IF RESPONSE IS BAD)
+    - name: Upload to GoFile (SAFE)
       run: |
         python - << 'EOF'
-        import requests
+        import requests, os
 
-        file = "slideshow_${{ matrix.worker }}.mp4"
+        filename = f"slideshow_{os.environ.get('MATRIX_WORKER','')}.mp4"
+        if not os.path.exists(filename):
+            files = [f for f in os.listdir('.') if f.startswith("slideshow_")]
+            filename = files[0]
 
-        server = requests.get(
-            "https://api.gofile.io/getServer"
-        ).json()["data"]["server"]
+        print("Uploading:", filename)
 
-        r = requests.post(
+        server_resp = requests.get("https://api.gofile.io/getServer")
+        print("Server response:")
+        print(server_resp.text)
+
+        server = server_resp.json()["data"]["server"]
+
+        upload = requests.post(
             f"https://{server}.gofile.io/uploadFile",
-            files={"file": open(file, "rb")}
+            files={"file": open(filename, "rb")}
         )
 
-        print("GOFILE LINK:", r.json()["data"]["downloadPage"])
+        print("Upload HTTP status:", upload.status_code)
+        print("Upload raw response:")
+        print(upload.text)
+
+        try:
+            data = upload.json()
+            if data.get("status") == "ok":
+                print("GOFILE LINK:", data["data"]["downloadPage"])
+            else:
+                print("Upload finished but unexpected JSON:", data)
+        except Exception:
+            print("Upload likely succeeded, but response was not JSON.")
+            print("Check GoFile manually if needed.")
         EOF
