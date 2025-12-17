@@ -1,14 +1,14 @@
-name: Video + Audio Mux (NO re-encode) FINAL
+name: 12hr Video (Parallel, Concat Copy Only)
 
 on:
   workflow_dispatch:
 
 jobs:
-  mux:
+  build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        id: [1, 2, 3, 4, 5]
+        id: [1,2,3,4,5]
 
     steps:
     - name: Install tools
@@ -17,28 +17,33 @@ jobs:
         sudo apt install -y ffmpeg
         pip install gdown
 
-    # ---------------- VIDEO URL ----------------
-    - name: Set video URL
+    # -------- INPUTS PER WORKER --------
+    - name: Set links
       run: |
         case "${{ matrix.id }}" in
-          1) echo "VIDEO_ID=1Nijq_M6f73tcauIJxKJKvadYnjMl3_ER" >> $GITHUB_ENV ;;
-          2) echo "VIDEO_ID=1HJN7xXEDRBnclmSOxZ67ImKajxXoGf5t" >> $GITHUB_ENV ;;
-          3) echo "VIDEO_ID=11ZSqye0UzY1EDESK1TddTlEspGUdItZE" >> $GITHUB_ENV ;;
-          4) echo "VIDEO_ID=13-Osfv8RmSTYKwxoEztQJGE7FeEjuHcE" >> $GITHUB_ENV ;;
-          5) echo "VIDEO_ID=1ZhhcsSIxh9j9oLcqrcEd4KC_nEG1K9tP" >> $GITHUB_ENV ;;
+          1)
+            echo "VIDEO_ID=1Nijq_M6f73tcauIJxKJKvadYnjMl3_ER" >> $GITHUB_ENV
+            echo "AUDIO_ID=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV
+            ;;
+          2)
+            echo "VIDEO_ID=1HJN7xXEDRBnclmSOxZ67ImKajxXoGf5t" >> $GITHUB_ENV
+            echo "AUDIO_ID=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV
+            ;;
+          3)
+            echo "VIDEO_ID=11ZSqye0UzY1EDESK1TddTlEspGUdItZE" >> $GITHUB_ENV
+            echo "AUDIO_ID=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV
+            ;;
+          4)
+            echo "VIDEO_ID=13-Osfv8RmSTYKwxoEztQJGE7FeEjuHcE" >> $GITHUB_ENV
+            echo "AUDIO_ID=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV
+            ;;
+          5)
+            echo "VIDEO_ID=1ZhhcsSIxh9j9oLcqrcEd4KC_nEG1K9tP" >> $GITHUB_ENV
+            echo "AUDIO_ID=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV
+            ;;
         esac
 
-    # ---------------- AUDIO URL ----------------
-    - name: Set audio URL
-      run: |
-        case "${{ matrix.id }}" in
-          1) echo "AUDIO_ID=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV ;;
-          2) echo "AUDIO_ID=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV ;;
-          3) echo "AUDIO_ID=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV ;;
-          4) echo "AUDIO_ID=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV ;;
-          5) echo "AUDIO_ID=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV ;;
-        esac
-
+    # -------- DOWNLOAD --------
     - name: Download video
       run: |
         gdown --fuzzy "https://drive.google.com/file/d/$VIDEO_ID/view" -O video.mp4
@@ -47,23 +52,33 @@ jobs:
       run: |
         gdown --fuzzy "https://drive.google.com/file/d/$AUDIO_ID/view" -O audio.mp3
 
-    - name: Validate files
+    # -------- BUILD CONCAT LIST (COPY-ONLY) --------
+    - name: Build concat list
       run: |
-        ffprobe video.mp4
-        ffprobe audio.mp3
+        VLEN=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video.mp4)
+        TARGET=$((11*3600+55*60))
+        COUNT=$(( (TARGET / ${VLEN%.*}) + 1 ))
+        printf "file 'video.mp4'\n%.0s" $(seq 1 $COUNT) > concat.txt
 
-    - name: Attach audio to video (NO re-encode)
+    # -------- CONCAT (NO RE-ENCODE) --------
+    - name: Concatenate video
+      run: |
+        ffmpeg -y -f concat -safe 0 -i concat.txt -c copy long_video.mp4
+
+    # -------- MUX AUDIO + CAP --------
+    - name: Final mux
       run: |
         ffmpeg -y \
-          -i video.mp4 \
+          -i long_video.mp4 \
           -i audio.mp3 \
           -map 0:v:0 \
           -map 1:a:0 \
           -c copy \
-          -shortest \
+          -t 11:55:00 \
           final_${{ matrix.id }}.mp4
 
-    - name: Upload final video as artifact
+    # -------- OUTPUT --------
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: final_video_${{ matrix.id }}
