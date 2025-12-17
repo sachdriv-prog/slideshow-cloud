@@ -1,0 +1,22 @@
+  upload_to_drive:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install rclone
+      run: |
+        curl https://rclone.org/install.sh | sudo bash
+
+    - name: Restore rclone config
+      run: |
+        mkdir -p ~/.config/rclone
+        echo "${{ secrets.RCLONE_CONF }}" > ~/.config/rclone/rclone.conf
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Upload artifacts to Google Drive
+      run: |
+        rclone copy artifacts gdrive:/FINAL_VIDEOS/ --progress
