@@ -1,4 +1,4 @@
-name: Slideshow + Audio Mux (NO re-encode)
+name: Mux Only (NO Upload)
 
 on:
   workflow_dispatch:
@@ -11,87 +11,49 @@ jobs:
         id: [1,2,3,4,5]
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg curl
 
-    - name: Install tools
-      run: |
-        sudo apt update
-        sudo apt install -y ffmpeg
-        pip install gdown pydrive2 oauth2client
+      - name: Download slideshow + audio
+        run: |
+          mkdir work && cd work
 
-    - name: Write Google Drive service account
-      run: |
-        echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
+          SLIDES=(
+            "https://pixeldrain.com/u/JS6Q9jnb"
+            "https://pixeldrain.com/u/NyF1UQ5Q"
+            "https://pixeldrain.com/u/ypSbjABE"
+            "https://pixeldrain.com/u/jaqdrcsA"
+            "https://pixeldrain.com/u/CFjsP8L1"
+          )
 
-    # ---------------- VIDEO LINKS ----------------
-    - name: Set video URL
-      run: |
-        case "${{ matrix.id }}" in
-          1) echo "VIDEO_URL=https://pixeldrain.com/u/JS6Q9jnb" >> $GITHUB_ENV ;;
-          2) echo "VIDEO_URL=https://pixeldrain.com/u/NyF1UQ5Q" >> $GITHUB_ENV ;;
-          3) echo "VIDEO_URL=https://pixeldrain.com/u/ypSbjABE" >> $GITHUB_ENV ;;
-          4) echo "VIDEO_URL=https://pixeldrain.com/u/jaqdrcsA" >> $GITHUB_ENV ;;
-          5) echo "VIDEO_URL=https://pixeldrain.com/u/CFjsP8L1" >> $GITHUB_ENV ;;
-        esac
+          AUDIOS=(
+            "https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3"
+            "https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3"
+            "https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T"
+            "https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9"
+            "https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI"
+          )
 
-    # ---------------- AUDIO LINKS ----------------
-    - name: Set audio URL
-      run: |
-        case "${{ matrix.id }}" in
-          1) echo "AUDIO_URL=https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV ;;
-          2) echo "AUDIO_URL=https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV ;;
-          3) echo "AUDIO_URL=https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV ;;
-          4) echo "AUDIO_URL=https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV ;;
-          5) echo "AUDIO_URL=https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV ;;
-        esac
+          IDX=$(( ${{ matrix.id }} - 1 ))
 
-    - name: Download slideshow video
-      run: |
-        curl -L "$VIDEO_URL" -o video.mp4
+          curl -L "${SLIDES[$IDX]}" -o video.mp4
+          curl -L "${AUDIOS[$IDX]}" -o audio.mp3
 
-    - name: Download audio
-      run: |
-        gdown "$AUDIO_URL" -O audio.mp3
+      - name: Mux audio (NO re-encode)
+        run: |
+          cd work
+          ffmpeg -y \
+            -i video.mp4 \
+            -i audio.mp3 \
+            -map 0:v:0 -map 1:a:0 \
+            -c copy \
+            -shortest \
+            final_${{ matrix.id }}.mp4
 
-    - name: Validate files
-      run: |
-        ffprobe video.mp4
-        ffprobe audio.mp3
-
-    - name: Attach audio (NO re-encode)
-      run: |
-        ffmpeg -y \
-          -i video.mp4 \
-          -i audio.mp3 \
-          -map 0:v:0 \
-          -map 1:a:0 \
-          -c copy \
-          -shortest \
-          final_${{ matrix.id }}.mp4
-
-    - name: Upload to Google Drive
-      run: |
-        cat > upload.py << 'PY'
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from oauth2client.service_account import ServiceAccountCredentials
-import os
-
-VIDEO = f"final_{os.environ['MID']}.mp4"
-
-scope = ['https://www.googleapis.com/auth/drive']
-gauth = GoogleAuth()
-gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    'sa.json', scope
-)
-drive = GoogleDrive(gauth)
-
-f = drive.CreateFile({'title': VIDEO})
-f.SetContentFile(VIDEO)
-f.Upload()
-
-print("UPLOADED:", VIDEO)
-print("LINK:", f['alternateLink'])
-PY
-        MID=${{ matrix.id }} python upload.py
+      - name: Upload as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: final_${{ matrix.id }}
+          path: work/final_${{ matrix.id }}.mp4
