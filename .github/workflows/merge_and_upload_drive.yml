@@ -1,4 +1,4 @@
-name: Mux Only (NO Upload)
+name: Video + Audio Mux (FAST, CLEAN)
 
 on:
   workflow_dispatch:
@@ -11,49 +11,66 @@ jobs:
         id: [1,2,3,4,5]
 
     steps:
-      - name: Install tools
-        run: |
-          sudo apt update
-          sudo apt install -y ffmpeg curl
+    - name: Install tools
+      run: |
+        sudo apt update
+        sudo apt install -y ffmpeg curl rclone
 
-      - name: Download slideshow + audio
-        run: |
-          mkdir work && cd work
+    - name: Restore rclone config
+      run: |
+        mkdir -p ~/.config/rclone
+        echo "${{ secrets.RCLONE_CONF }}" > ~/.config/rclone/rclone.conf
 
-          SLIDES=(
-            "https://pixeldrain.com/u/JS6Q9jnb"
-            "https://pixeldrain.com/u/NyF1UQ5Q"
-            "https://pixeldrain.com/u/ypSbjABE"
-            "https://pixeldrain.com/u/jaqdrcsA"
-            "https://pixeldrain.com/u/CFjsP8L1"
-          )
+    # -------- SELECT LINKS --------
+    - name: Select audio & video links
+      run: |
+        case "${{ matrix.id }}" in
+          1)
+            echo "AUDIO=https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3&export=download" >> $GITHUB_ENV
+            echo "VIDEO=https://drive.google.com/uc?id=1Nijq_M6f73tcauIJxKJKvadYnjMl3_ER&export=download" >> $GITHUB_ENV
+            ;;
+          2)
+            echo "AUDIO=https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3&export=download" >> $GITHUB_ENV
+            echo "VIDEO=https://drive.google.com/uc?id=1HJN7xXEDRBnclmSOxZ67ImKajxXoGf5t&export=download" >> $GITHUB_ENV
+            ;;
+          3)
+            echo "AUDIO=https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T&export=download" >> $GITHUB_ENV
+            echo "VIDEO=https://drive.google.com/uc?id=11ZSqye0UzY1EDESK1TddTlEspGUdItZE&export=download" >> $GITHUB_ENV
+            ;;
+          4)
+            echo "AUDIO=https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9&export=download" >> $GITHUB_ENV
+            echo "VIDEO=https://drive.google.com/uc?id=13-Osfv8RmSTYKwxoEztQJGE7FeEjuHcE&export=download" >> $GITHUB_ENV
+            ;;
+          5)
+            echo "AUDIO=https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI&export=download" >> $GITHUB_ENV
+            echo "VIDEO=https://drive.google.com/uc?id=1ZhhcsSIxh9j9oLcqrcEd4KC_nEG1K9tP&export=download" >> $GITHUB_ENV
+            ;;
+        esac
 
-          AUDIOS=(
-            "https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3"
-            "https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3"
-            "https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T"
-            "https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9"
-            "https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI"
-          )
+    # -------- DOWNLOAD (NORMAL HTTP) --------
+    - name: Download files (NORMAL)
+      run: |
+        curl -L "$VIDEO" -o video.mp4
+        curl -L "$AUDIO" -o audio.mp3
 
-          IDX=$(( ${{ matrix.id }} - 1 ))
+    - name: Validate
+      run: |
+        ffprobe video.mp4
+        ffprobe audio.mp3
 
-          curl -L "${SLIDES[$IDX]}" -o video.mp4
-          curl -L "${AUDIOS[$IDX]}" -o audio.mp3
+    # -------- MUX (NO RE-ENCODE) --------
+    - name: Attach audio to video
+      run: |
+        ffmpeg -y \
+          -i video.mp4 \
+          -i audio.mp3 \
+          -map 0:v:0 \
+          -map 1:a:0 \
+          -c copy \
+          -shortest \
+          final_${{ matrix.id }}.mp4
 
-      - name: Mux audio (NO re-encode)
-        run: |
-          cd work
-          ffmpeg -y \
-            -i video.mp4 \
-            -i audio.mp3 \
-            -map 0:v:0 -map 1:a:0 \
-            -c copy \
-            -shortest \
-            final_${{ matrix.id }}.mp4
-
-      - name: Upload as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: final_${{ matrix.id }}
-          path: work/final_${{ matrix.id }}.mp4
+    # -------- UPLOAD (ONLY rclone HERE) --------
+    - name: Upload to your Google Drive
+      run: |
+        rclone copy final_${{ matrix.id }}.mp4 gdrive:/Final_Videos/
