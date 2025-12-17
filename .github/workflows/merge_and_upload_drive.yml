@@ -29,19 +29,15 @@ jobs:
         if [ "${{ matrix.id }}" = "1" ]; then
           curl -L https://pixeldrain.com/api/file/JS6Q9jnb -o video.mp4
           gdown --id 1y-VwADH464i3OHZg3xPMXjnYmRxIZac3 -O audio.mp3
-
         elif [ "${{ matrix.id }}" = "2" ]; then
           curl -L https://pixeldrain.com/api/file/NyF1UQ5Q -o video.mp4
           gdown --id 1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3 -O audio.mp3
-
         elif [ "${{ matrix.id }}" = "3" ]; then
           curl -L https://pixeldrain.com/api/file/ypSbjABE -o video.mp4
           gdown --id 1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T -O audio.mp3
-
         elif [ "${{ matrix.id }}" = "4" ]; then
           curl -L https://pixeldrain.com/api/file/jaqdrcsA -o video.mp4
           gdown --id 1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9 -O audio.mp3
-
         elif [ "${{ matrix.id }}" = "5" ]; then
           curl -L https://pixeldrain.com/api/file/CFjsP8L1 -o video.mp4
           gdown --id 1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI -O audio.mp3
@@ -68,7 +64,10 @@ jobs:
 
     - name: Upload final video to Google Drive
       run: |
-        python << 'EOF'
+        VIDEO_NAME="final_${{ matrix.id }}.mp4"
+        VIDEO_PATH="work/final_${{ matrix.id }}.mp4"
+
+        python << EOF
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
@@ -81,10 +80,8 @@ gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
 
 drive = GoogleDrive(gauth)
 
-file = drive.CreateFile({
-    'title': 'final_video_${{ matrix.id }}.mp4'
-})
-file.SetContentFile('work/final_${{ matrix.id }}.mp4')
+file = drive.CreateFile({'title': "$VIDEO_NAME"})
+file.SetContentFile("$VIDEO_PATH")
 file.Upload()
 
 print("===================================")
