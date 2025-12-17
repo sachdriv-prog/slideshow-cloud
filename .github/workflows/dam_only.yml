@@ -28,11 +28,12 @@ jobs:
     - name: Set video URL
       run: |
         case "${{ matrix.id }}" in
-          1) echo "VIDEO_URL=https://pixeldrain.com/u/JS6Q9jnb" >> $GITHUB_ENV ;;
-          2) echo "VIDEO_URL=https://pixeldrain.com/u/NyF1UQ5Q" >> $GITHUB_ENV ;;
-          3) echo "VIDEO_URL=https://pixeldrain.com/u/ypSbjABE" >> $GITHUB_ENV ;;
-          4) echo "VIDEO_URL=https://pixeldrain.com/u/jaqdrcsA" >> $GITHUB_ENV ;;
-          5) echo "VIDEO_URL=https://pixeldrain.com/u/CFjsP8L1" >> $GITHUB_ENV ;;
+          # Note: /u/ changed to /api/file/ for direct download
+          1) echo "VIDEO_URL=https://pixeldrain.com/api/file/JS6Q9jnb" >> $GITHUB_ENV ;;
+          2) echo "VIDEO_URL=https://pixeldrain.com/api/file/NyF1UQ5Q" >> $GITHUB_ENV ;;
+          3) echo "VIDEO_URL=https://pixeldrain.com/api/file/ypSbjABE" >> $GITHUB_ENV ;;
+          4) echo "VIDEO_URL=https://pixeldrain.com/api/file/jaqdrcsA" >> $GITHUB_ENV ;;
+          5) echo "VIDEO_URL=https://pixeldrain.com/api/file/CFjsP8L1" >> $GITHUB_ENV ;;
         esac
 
     # ---------------- AUDIO LINKS ----------------
