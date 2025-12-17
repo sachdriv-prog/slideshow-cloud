@@ -1,4 +1,4 @@
-name: Final Slideshow + Audio → Drive (No Re-encode)
+name: Slideshow + Audio Mux (NO re-encode)
 
 on:
   workflow_dispatch:
@@ -8,84 +8,90 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        id: [1, 2, 3, 4, 5]
+        id: [1,2,3,4,5]
 
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
     - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg curl jq
+        sudo apt install -y ffmpeg
         pip install gdown pydrive2 oauth2client
 
-    - name: Setup Google Drive auth
+    - name: Write Google Drive service account
       run: |
         echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
 
-    - name: Download slideshow + audio
+    # ---------------- VIDEO LINKS ----------------
+    - name: Set video URL
       run: |
-        mkdir work
-        cd work
+        case "${{ matrix.id }}" in
+          1) echo "VIDEO_URL=https://pixeldrain.com/u/JS6Q9jnb" >> $GITHUB_ENV ;;
+          2) echo "VIDEO_URL=https://pixeldrain.com/u/NyF1UQ5Q" >> $GITHUB_ENV ;;
+          3) echo "VIDEO_URL=https://pixeldrain.com/u/ypSbjABE" >> $GITHUB_ENV ;;
+          4) echo "VIDEO_URL=https://pixeldrain.com/u/jaqdrcsA" >> $GITHUB_ENV ;;
+          5) echo "VIDEO_URL=https://pixeldrain.com/u/CFjsP8L1" >> $GITHUB_ENV ;;
+        esac
 
-        if [ "${{ matrix.id }}" = "1" ]; then
-          curl -L https://pixeldrain.com/api/file/JS6Q9jnb -o video.mp4
-          gdown --id 1y-VwADH464i3OHZg3xPMXjnYmRxIZac3 -O audio.mp3
-        elif [ "${{ matrix.id }}" = "2" ]; then
-          curl -L https://pixeldrain.com/api/file/NyF1UQ5Q -o video.mp4
-          gdown --id 1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3 -O audio.mp3
-        elif [ "${{ matrix.id }}" = "3" ]; then
-          curl -L https://pixeldrain.com/api/file/ypSbjABE -o video.mp4
-          gdown --id 1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T -O audio.mp3
-        elif [ "${{ matrix.id }}" = "4" ]; then
-          curl -L https://pixeldrain.com/api/file/jaqdrcsA -o video.mp4
-          gdown --id 1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9 -O audio.mp3
-        elif [ "${{ matrix.id }}" = "5" ]; then
-          curl -L https://pixeldrain.com/api/file/CFjsP8L1 -o video.mp4
-          gdown --id 1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI -O audio.mp3
-        fi
+    # ---------------- AUDIO LINKS ----------------
+    - name: Set audio URL
+      run: |
+        case "${{ matrix.id }}" in
+          1) echo "AUDIO_URL=https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV ;;
+          2) echo "AUDIO_URL=https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV ;;
+          3) echo "AUDIO_URL=https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV ;;
+          4) echo "AUDIO_URL=https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV ;;
+          5) echo "AUDIO_URL=https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV ;;
+        esac
+
+    - name: Download slideshow video
+      run: |
+        curl -L "$VIDEO_URL" -o video.mp4
+
+    - name: Download audio
+      run: |
+        gdown "$AUDIO_URL" -O audio.mp3
 
     - name: Validate files
       run: |
-        cd work
         ffprobe video.mp4
         ffprobe audio.mp3
 
-    - name: Attach audio to slideshow (NO re-encode)
+    - name: Attach audio (NO re-encode)
       run: |
-        cd work
         ffmpeg -y \
           -i video.mp4 \
           -i audio.mp3 \
-          -t 11:55:00 \
           -map 0:v:0 \
           -map 1:a:0 \
           -c copy \
           -shortest \
           final_${{ matrix.id }}.mp4
 
-    - name: Upload final video to Google Drive
+    - name: Upload to Google Drive
       run: |
-        VIDEO_NAME="final_${{ matrix.id }}.mp4"
-        VIDEO_PATH="work/final_${{ matrix.id }}.mp4"
-
-        python << EOF
+        cat > upload.py << 'PY'
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
+import os
+
+VIDEO = f"final_{os.environ['MID']}.mp4"
 
 scope = ['https://www.googleapis.com/auth/drive']
 gauth = GoogleAuth()
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
     'sa.json', scope
 )
-
 drive = GoogleDrive(gauth)
 
-file = drive.CreateFile({'title': "$VIDEO_NAME"})
-file.SetContentFile("$VIDEO_PATH")
-file.Upload()
+f = drive.CreateFile({'title': VIDEO})
+f.SetContentFile(VIDEO)
+f.Upload()
 
-print("===================================")
-print("GOOGLE DRIVE LINK:")
-print(file['alternateLink'])
-print("===================================")
-EOF
+print("UPLOADED:", VIDEO)
+print("LINK:", f['alternateLink'])
+PY
+        MID=${{ matrix.id }} python upload.py
