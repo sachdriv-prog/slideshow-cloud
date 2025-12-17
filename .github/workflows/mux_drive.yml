@@ -1,4 +1,4 @@
-name: Final Audio + Video Mux (NO re-encode, Direct Drive Upload)
+name: Video + Audio Mux (NO re-encode) FINAL
 
 on:
   workflow_dispatch:
@@ -8,24 +8,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        id: [1,2,3,4,5]
+        id: [1, 2, 3, 4, 5]
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg unzip curl
-        curl https://rclone.org/install.sh | sudo bash
+        sudo apt install -y ffmpeg
+        pip install gdown
 
-    - name: Restore rclone config
-      run: |
-        mkdir -p ~/.config/rclone
-        echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
-
-    # ---------------- VIDEO LINKS ----------------
+    # ---------------- VIDEO URL ----------------
     - name: Set video URL
       run: |
         case "${{ matrix.id }}" in
@@ -36,9 +28,43 @@ jobs:
           5) echo "VIDEO_ID=1ZhhcsSIxh9j9oLcqrcEd4KC_nEG1K9tP" >> $GITHUB_ENV ;;
         esac
 
-    # ---------------- AUDIO LINKS ----------------
+    # ---------------- AUDIO URL ----------------
     - name: Set audio URL
       run: |
         case "${{ matrix.id }}" in
           1) echo "AUDIO_ID=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV ;;
-          2) echo "AUDIO_ID=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $
+          2) echo "AUDIO_ID=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV ;;
+          3) echo "AUDIO_ID=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV ;;
+          4) echo "AUDIO_ID=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV ;;
+          5) echo "AUDIO_ID=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV ;;
+        esac
+
+    - name: Download video
+      run: |
+        gdown --fuzzy "https://drive.google.com/file/d/$VIDEO_ID/view" -O video.mp4
+
+    - name: Download audio
+      run: |
+        gdown --fuzzy "https://drive.google.com/file/d/$AUDIO_ID/view" -O audio.mp3
+
+    - name: Validate files
+      run: |
+        ffprobe video.mp4
+        ffprobe audio.mp3
+
+    - name: Attach audio to video (NO re-encode)
+      run: |
+        ffmpeg -y \
+          -i video.mp4 \
+          -i audio.mp3 \
+          -map 0:v:0 \
+          -map 1:a:0 \
+          -c copy \
+          -shortest \
+          final_${{ matrix.id }}.mp4
+
+    - name: Upload final video as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: final_video_${{ matrix.id }}
+        path: final_${{ matrix.id }}.mp4
