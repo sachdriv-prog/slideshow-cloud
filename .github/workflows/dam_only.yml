@@ -17,18 +17,13 @@ jobs:
     - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg
-        pip install gdown pydrive2 oauth2client
-
-    - name: Write Google Drive service account
-      run: |
-        echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
+        sudo apt install -y ffmpeg curl
+        pip install gdown
 
     # ---------------- VIDEO LINKS ----------------
     - name: Set video URL
       run: |
         case "${{ matrix.id }}" in
-          # Note: /u/ changed to /api/file/ for direct download
           1) echo "VIDEO_URL=https://pixeldrain.com/api/file/JS6Q9jnb" >> $GITHUB_ENV ;;
           2) echo "VIDEO_URL=https://pixeldrain.com/api/file/NyF1UQ5Q" >> $GITHUB_ENV ;;
           3) echo "VIDEO_URL=https://pixeldrain.com/api/file/ypSbjABE" >> $GITHUB_ENV ;;
@@ -71,28 +66,8 @@ jobs:
           -shortest \
           final_${{ matrix.id }}.mp4
 
-    - name: Upload to Google Drive
-      run: |
-        cat > upload.py << 'PY'
-        from pydrive2.auth import GoogleAuth
-        from pydrive2.drive import GoogleDrive
-        from oauth2client.service_account import ServiceAccountCredentials
-        import os
-
-        VIDEO = f"final_{os.environ['MID']}.mp4"
-
-        scope = ['https://www.googleapis.com/auth/drive']
-        gauth = GoogleAuth()
-        gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            'sa.json', scope
-        )
-        drive = GoogleDrive(gauth)
-
-        f = drive.CreateFile({'title': VIDEO})
-        f.SetContentFile(VIDEO)
-        f.Upload()
-
-        print("UPLOADED:", VIDEO)
-        print("LINK:", f['alternateLink'])
-        PY
-        MID=${{ matrix.id }} python upload.py
+    - name: Upload as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: final_${{ matrix.id }}
+        path: final_${{ matrix.id }}.mp4
