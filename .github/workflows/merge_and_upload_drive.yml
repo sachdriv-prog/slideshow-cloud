@@ -67,25 +67,29 @@ jobs:
           final_${{ matrix.id }}.mp4
 
     - name: Upload final video to Google Drive
-      run: |
-        python << 'EOF'
-        from pydrive2.auth import GoogleAuth
-        from pydrive2.drive import GoogleDrive
+  run: |
+    python << 'EOF'
+    from pydrive2.auth import GoogleAuth
+    from pydrive2.drive import GoogleDrive
+    from oauth2client.service_account import ServiceAccountCredentials
 
-        gauth = GoogleAuth()
-        gauth.LoadServiceConfigFile("sa.json")
-        gauth.ServiceAuth()
+    scope = ['https://www.googleapis.com/auth/drive']
+    gauth = GoogleAuth()
 
-        drive = GoogleDrive(gauth)
+    gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        'sa.json', scope
+    )
 
-        file = drive.CreateFile({
-            'title': f'final_video_${{ matrix.id }}.mp4'
-        })
-        file.SetContentFile(f'work/final_${{ matrix.id }}.mp4')
-        file.Upload()
+    drive = GoogleDrive(gauth)
 
-        print("===================================")
-        print("GOOGLE DRIVE LINK:")
-        print(file['alternateLink'])
-        print("===================================")
-        EOF
+    file = drive.CreateFile({
+        'title': f'final_video_${{ matrix.id }}.mp4'
+    })
+    file.SetContentFile(f'work/final_${{ matrix.id }}.mp4')
+    file.Upload()
+
+    print("===================================")
+    print("GOOGLE DRIVE LINK:")
+    print(file['alternateLink'])
+    print("===================================")
+    EOF
