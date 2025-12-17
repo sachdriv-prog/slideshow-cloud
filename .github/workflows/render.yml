@@ -1,4 +1,4 @@
-name: Random Parallel Slideshow + Upload
+name: Random Parallel Slideshow → Google Drive
 
 on:
   workflow_dispatch:
@@ -17,8 +17,12 @@ jobs:
     - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y ffmpeg unzip jq curl
-        pip install gdown
+        sudo apt install -y ffmpeg unzip
+        pip install gdown google-api-python-client google-auth google-auth-oauthlib
+
+    - name: Write Google Drive service account
+      run: |
+        echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
 
     - name: Download images from Google Drive
       run: |
@@ -27,16 +31,8 @@ jobs:
 
     - name: Generate RANDOM image list (per worker)
       run: |
-        echo "Generating random order for worker ${{ matrix.worker }}"
-
         find images -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) > images_all.txt
-
         shuf --random-source=<(yes ${{ matrix.worker }}) images_all.txt > images_shuffled.txt
-
-        echo "Preview (first 10 images):"
-        head images_shuffled.txt
-
-        # Create FFmpeg concat list
         sed "s|^|file '|; s|$|'|" images_shuffled.txt > images_ffmpeg.txt
 
     - name: Render slideshow (RANDOM)
@@ -47,33 +43,43 @@ jobs:
           -r 30 \
           slideshow_${{ matrix.worker }}.mp4
 
-    - name: Backup slideshow as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: slideshow_${{ matrix.worker }}
-        path: slideshow_${{ matrix.worker }}.mp4
-
-    - name: Upload slideshow to Pixeldrain
+    - name: Upload slideshow to Google Drive (Service Account)
       env:
-        PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
+        WORKER: ${{ matrix.worker }}
       run: |
-        FILE="slideshow_${{ matrix.worker }}.mp4"
-        echo "Uploading $FILE"
+        python << 'EOF'
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+import os
 
-        RESPONSE=$(curl -s -u ":$PIXELDRAIN_API_KEY" \
-          -F "file=@$FILE" \
-          https://pixeldrain.com/api/file)
+SCOPES = ['https://www.googleapis.com/auth/drive']
+creds = service_account.Credentials.from_service_account_file(
+    'sa.json', scopes=SCOPES
+)
 
-        echo "Raw response:"
-        echo "$RESPONSE"
+service = build('drive', 'v3', credentials=creds)
 
-        ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+file_metadata = {
+    'name': f'slideshow_{os.environ["WORKER"]}.mp4',
+    # OPTIONAL: upload into a specific folder
+    # 'parents': ['YOUR_FOLDER_ID_HERE']
+}
 
-        if [ -n "$ID" ]; then
-          echo "=============================="
-          echo "PIXELDRAIN LINK:"
-          echo "https://pixeldrain.com/u/$ID"
-          echo "=============================="
-        else
-          echo "❌ Upload failed"
-        fi
+media = MediaFileUpload(
+    f'slideshow_{os.environ["WORKER"]}.mp4',
+    mimetype='video/mp4',
+    resumable=True
+)
+
+file = service.files().create(
+    body=file_metadata,
+    media_body=media,
+    fields='id, webViewLink'
+).execute()
+
+print("=================================")
+print("UPLOADED TO GOOGLE DRIVE")
+print("LINK:", file.get('webViewLink'))
+print("=================================")
+EOF
