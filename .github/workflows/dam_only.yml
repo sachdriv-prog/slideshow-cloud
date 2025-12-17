@@ -35,24 +35,26 @@ jobs:
     - name: Set audio URL
       run: |
         case "${{ matrix.id }}" in
-          1) echo "AUDIO_URL=https://drive.google.com/uc?id=1y-VwADH464i3OHZg3xPMXjnYmRxIZac3" >> $GITHUB_ENV ;;
-          2) echo "AUDIO_URL=https://drive.google.com/uc?id=1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3" >> $GITHUB_ENV ;;
-          3) echo "AUDIO_URL=https://drive.google.com/uc?id=1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T" >> $GITHUB_ENV ;;
-          4) echo "AUDIO_URL=https://drive.google.com/uc?id=1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9" >> $GITHUB_ENV ;;
-          5) echo "AUDIO_URL=https://drive.google.com/uc?id=1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI" >> $GITHUB_ENV ;;
+          1) echo "AUDIO_URL=https://drive.google.com/file/d/1y-VwADH464i3OHZg3xPMXjnYmRxIZac3/view" >> $GITHUB_ENV ;;
+          2) echo "AUDIO_URL=https://drive.google.com/file/d/1kKdG4zda1NEFipq7nY9d_7gU7Yeiy1p3/view" >> $GITHUB_ENV ;;
+          3) echo "AUDIO_URL=https://drive.google.com/file/d/1fsvFri91k57y5AK9wNfxgPvTOtIx7X5T/view" >> $GITHUB_ENV ;;
+          4) echo "AUDIO_URL=https://drive.google.com/file/d/1En_WIU4lowecrjlfFSRolm9zHZ0PdiE9/view" >> $GITHUB_ENV ;;
+          5) echo "AUDIO_URL=https://drive.google.com/file/d/1QauDvFz0DmJkEixXtnpb9S31U6CrbeYI/view" >> $GITHUB_ENV ;;
         esac
 
     - name: Download slideshow video
       run: |
         curl -L "$VIDEO_URL" -o video.mp4
 
-    - name: Download audio
+    - name: Download audio (Drive FIXED)
       run: |
-        gdown "$AUDIO_URL" -O audio.mp3
+        gdown --fuzzy "$AUDIO_URL" -O audio.mp3
 
     - name: Validate files
       run: |
+        echo "=== VIDEO ==="
         ffprobe video.mp4
+        echo "=== AUDIO ==="
         ffprobe audio.mp3
 
     - name: Attach audio (NO re-encode)
