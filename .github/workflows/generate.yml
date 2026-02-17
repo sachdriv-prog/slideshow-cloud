@@ -1,0 +1,50 @@
+name: Generate 5 Slideshow Videos
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_url:
+        description: 'Image ZIP file ka direct download link dalo'
+        required: true
+        type: string
+
+jobs:
+  render_videos:
+    runs-on: ubuntu-latest
+    strategy:
+      # Yeh matrix 5 alag-alag parallel jobs (workers) create karegi
+      matrix:
+        worker_id: [1, 2, 3, 4, 5]
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python Libraries
+        # Note: Linux server ke liye 'opencv-python-headless' zaroori hai
+        run: pip install opencv-python-headless pillow numpy
+
+      - name: Download and Unzip Images
+        run: |
+          mkdir -p images
+          echo "Downloading images from: ${{ github.event.inputs.zip_url }}"
+          wget -O temp_images.zip "${{ github.event.inputs.zip_url }}"
+          unzip -q temp_images.zip -d images/
+          rm temp_images.zip
+
+      - name: Run Video Generation Script
+        run: |
+          # Har worker apni video ka naam alag rakhega
+          python slideshow_cv.py worker_${{ matrix.worker_id }}_video.mp4
+
+      - name: Upload Video to Free Cloud (GitHub Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Final-Video-Worker-${{ matrix.worker_id }}
+          path: worker_${{ matrix.worker_id }}_video.mp4
+          retention-days: 7 # Link 7 din tak valid rahega
